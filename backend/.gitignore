@@ -1,3 +1,5 @@
+signalling/db_connection.py
+
 # Django #
 *.log
 *.pot
