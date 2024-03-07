@@ -38,8 +38,9 @@ app.add_middleware(
          response_model=ConnectionCollection,
          response_model_by_alias=False,
          )
-def list_connections():
-    return ConnectionCollection(connections=db.find())
+def list_connections(status: bool = None):
+    query = {"status": status} if status is not None else {}
+    return ConnectionCollection(connections=db.find(query))
 
 
 @app.post(
