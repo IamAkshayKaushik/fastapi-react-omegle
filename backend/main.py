@@ -2,25 +2,39 @@ import os
 from dotenv import load_dotenv
 
 
-from fastapi import FastAPI, Response, status, Body, HTTPException
-from models import ConnectionModel, UpdateConnectionModel, ConnectionCollection
+from fastapi import (FastAPI,
+                     Request,
+                     Response,
+                     status,
+                     Body,
+                     HTTPException,
+                     WebSocket
+                     )
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from models import (ConnectionModel,
+                    UpdateConnectionModel,
+                    ConnectionCollection
+                    )
 from db_connection import Database
 
 
 from bson.objectid import ObjectId
 
-from fastapi.middleware.cors import CORSMiddleware
-
 
 load_dotenv()  # take environment variables from .env.
 
 
-uri = os.environ.get('MONGODB_URI')
-db: Database = Database(uri)
+URI = os.environ.get('MONGODB_URI')
+db: Database = Database(URI)
 db.connect(database=os.environ.get('DATABASE_NAME'), collection='connections')
 
 
 app: FastAPI = FastAPI()
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
 
 
 origins = ["*"]
