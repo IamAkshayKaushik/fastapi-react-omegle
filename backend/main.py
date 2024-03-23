@@ -2,26 +2,32 @@ import os
 from dotenv import load_dotenv
 
 
-from fastapi import (FastAPI,
-                     Request,
-                     Response,
-                     status,
-                     Body,
-                     HTTPException,
-                     WebSocket
-                     )
+from fastapi import (
+    FastAPI,
+    Request,
+    Response,
+    status,
+    Body,
+    HTTPException,
+    WebSocket,
+    WebSocketDisconnect
+)
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from models import (ConnectionModel,
-                    UpdateConnectionModel,
-                    ConnectionCollection
-                    )
+
+from models import (
+    ConnectionModel,
+    UpdateConnectionModel,
+    ConnectionCollection
+)
+
 from db_connection import Database
 
-
 from bson.objectid import ObjectId
+import string
+import random
+import json
 
 
 load_dotenv()  # take environment variables from .env.
@@ -33,7 +39,11 @@ db.connect(database=os.environ.get('DATABASE_NAME'), collection='connections')
 
 
 app: FastAPI = FastAPI()
+
+# Set static files directory
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Set Jinja2 templates directory
 templates = Jinja2Templates(directory="templates")
 
 
@@ -142,6 +152,47 @@ def delete_connection(id: str):
             detail=f"Connection {id} not found"
         )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.get("/")
+async def home(request: Request):
+    return templates.TemplateResponse("home.html", {"request": request})
+
+
+clients = {}
+
+
+def generate_unique_id(length=3):
+    chars = string.ascii_letters + string.digits
+    return ''.join(random.choice(chars) for _ in range(length))
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    # client_id = str(websocket)  # Use the WebSocket object as the client ID
+    client_id = generate_unique_id()
+    # Add the new client to the clients dictionary
+    clients[client_id] = websocket
+
+    try:
+        while True:
+            data = await websocket.receive_text()
+            data_json = json.loads(data)
+            data_json["peer_id"] = client_id
+
+            # Broadcast the message to all other clients
+            for other_client_id, other_client_websocket in clients.items():
+                if other_client_id != client_id:
+                    await other_client_websocket.send_text(
+                        json.dumps(data_json)
+                    )
+
+    except WebSocketDisconnect:
+        # Remove the disconnected client from the clients dictionary
+        clients.pop(client_id)
+        print(f"WebSocket {client_id} disconnected")
+        await websocket.close()
 
 
 if __name__ == "__main__":

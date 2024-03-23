@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>WebRTC Video Call</title>
+    <style>
+        #video-container {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        video {
+            width: 400px;
+            height: 300px;
+            margin: 0 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>WebRTC Video Call</h1>
+    <div id="video-container">
+        <video id="local-video" autoplay muted></video>
+        <video id="remote-video" autoplay></video>
+    </div>
+    <div id="status"></div>
+    <input type="checkbox" id="start-end-call" name="call">start/end</input>
+    <button id="mute-unmute-btn">Mute</button>
+
+    <script>
+        const localVideo = document.getElementById('local-video');
+        const remoteVideo = document.getElementById('remote-video');
+        const statusDiv = document.getElementById('status');
+        const startEndCallCheckbox = document.getElementById('start-end-call');
+        const muteUnmuteButton = document.getElementById('mute-unmute-btn');
+
+        let peerConnection;
+        let localStream;
+        let remoteStream;
+        let isMuted = false;
+        let isCallStarted = false;
+
+        const configuration = {
+            'iceServers': [{
+                'urls': 'stun:stun.l.google.com:19302'
+            }]
+        };
+
+        const websocketUrl = 'ws://127.0.0.1:8000/ws';
+        const websocket = new WebSocket(websocketUrl);
+
+        websocket.onmessage = async (event) => {
+            if (event.data instanceof Blob) {
+                remoteStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                remoteVideo.srcObject = remoteStream;
+            } else {
+                const message = JSON.parse(event.data);
+                if (message.type === 'offer') {
+                    console.log('Received offer from:', message.peer_id);
+                    await createAnswer(message.offer);
+                } else if (message.type === 'answer') {
+                    console.log('Received answer from:', message.peer_id);
+                    await setRemoteAnswer(message.answer);
+                } else if (message.type === 'candidate') {
+                    await addIceCandidate(message.candidate);
+                }
+            }
+        };
+
+        muteUnmuteButton.addEventListener('click', () => {
+            isMuted = !isMuted;
+            localStream.getTracks().forEach((track) => {
+                track.enabled = !isMuted;
+            });
+            muteUnmuteButton.textContent = isMuted ? 'Unmute' : 'Mute';
+        });
+
+        startEndCallCheckbox.addEventListener('change', async () => {
+            if (startEndCallCheckbox.checked) {
+                await startCall();
+            } else {
+                endCall();
+            }
+        });
+
+        async function startCall() {
+            isCallStarted = true;
+            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            localVideo.srcObject = localStream;
+            createPeerConnection();
+            sendOffer();
+        }
+
+        function endCall() {
+            isCallStarted = false;
+            localStream.getTracks().forEach((track) => track.stop());
+            remoteStream.getTracks().forEach((track) => track.stop());
+            peerConnection.close();
+            peerConnection = null;
+            localVideo.srcObject = null;
+            remoteVideo.srcObject = null;
+            statusDiv.textContent = '';
+        }
+
+        function createPeerConnection() {
+            peerConnection = new RTCPeerConnection(configuration);
+
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    websocket.send(JSON.stringify({ type: 'candidate', candidate: event.candidate }));
+                }
+            };
+
+            peerConnection.ontrack = (event) => {
+                remoteStream = event.streams[0];
+                remoteVideo.srcObject = remoteStream;
+            };
+
+            localStream.getTracks().forEach((track) => {
+                peerConnection.addTrack(track, localStream);
+            });
+        }
+
+        async function sendOffer() {
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            websocket.send(JSON.stringify({ type: 'offer', offer: offer }));
+        }
+
+        async function createAnswer(offer) {
+            await peerConnection.setRemoteDescription(offer);
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            websocket.send(JSON.stringify({ type: 'answer', answer: answer }));
+        }
+
+        async function setRemoteAnswer(answer) {
+            await peerConnection.setRemoteDescription(answer);
+        }
+
+        async function addIceCandidate(candidate) {
+            await peerConnection.addIceCandidate(candidate);
+        }
+    </script>
+</body>
+
+</html>
