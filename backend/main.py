@@ -58,7 +58,7 @@ app.add_middleware(
 
 
 @app.get("/connections/",
-         response_description="List all students",
+         response_description="List all Connections",
          response_model=ConnectionCollection,
          response_model_by_alias=False,
          )
@@ -69,7 +69,7 @@ def list_connections(status: bool = None):
 
 @app.post(
     "/connections/",
-    response_description="Create a new connection",
+    response_description="Create a new Connection",
     response_model=ConnectionModel,
     status_code=status.HTTP_201_CREATED,
     response_model_by_alias=False
@@ -90,7 +90,7 @@ def create_connection(connection: ConnectionModel = Body(...)):
 
 @app.get(
     "/connections/{id}",
-    response_description="Get a single connection",
+    response_description="Get a single Connection",
     response_model=ConnectionModel,
     response_model_by_alias=False
 )
@@ -106,7 +106,7 @@ def show_connection(id: str):
 
 
 @app.put("/connections/{id}",
-         response_description="Update a connection",
+         response_description="Update a Connection",
          response_model=ConnectionModel,
          response_model_by_alias=False
          )
@@ -137,7 +137,7 @@ def update_connection(id: str, connection: UpdateConnectionModel):
 
 
 @app.delete("/connections/{id}",
-            response_description="Delete a connection",
+            response_description="Delete a Connection",
             # status_code=status.HTTP_204_NO_CONTENT
             )
 def delete_connection(id: str):
@@ -169,6 +169,9 @@ def generate_unique_id(length=3):
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    """
+    A websocket endpoint for sending and receiving messages.
+    """
     await websocket.accept()
     # client_id = str(websocket)  # Use the WebSocket object as the client ID
     client_id = generate_unique_id()
